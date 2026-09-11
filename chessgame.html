@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Endgame — Play Chess</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- Apple Sign-In JS -->
+<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async defer></script>
+
+<style>
+:root{
+--walnut-dark:#241c16;
+--walnut:#3c2c22;
+--board-light:#ecdfc4;
+--board-dark:#7a5a3a;
+--gold:#c9a24b;
+--gold-bright:#e2bd6c;
+--ivory:#f4ede0;
+--ink:#1b140f;
+--danger:#a8433a;
+--radius:10px;
+--serif:'Fraunces', Georgia, serif;
+--sans:'Inter', system-ui, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+min-height:100vh;
+background:
+radial-gradient(circle at 15% 10%, rgba(201,162,75,0.10), transparent 45%),
+radial-gradient(circle at 85% 90%, rgba(201,162,75,0.08), transparent 45%),
+var(--walnut-dark);
+color:var(--ivory);
+font-family:var(--sans);
+display:flex;
+flex-direction:column;
+align-items:center;
+padding:32px 16px 60px;
+}
+
+header.top{
+width:100%;
+max-width:1080px;
+display:flex;
+align-items:baseline;
+justify-content:space-between;
+margin-bottom:28px;
+flex-wrap:wrap;
+gap:12px;
+}
+header.top h1{
+font-family:var(--serif);
+font-weight:600;
+font-size:clamp(28px,4vw,40px);
+letter-spacing:0.2px;
+margin:0;
+color:var(--ivory);
+}
+header.top h1 span{color:var(--gold-bright);}
+header.top .tagline{
+font-size:13px;
+color:#a8998a;
+margin-top:4px;
+}
+
+.layout{
+width:100%;
+max-width:1080px;
+display:grid;
+grid-template-columns:minmax(0,1fr) 300px;
+gap:28px;
+align-items:start;
+}
+@media (max-width:820px){
+.layout{grid-template-columns:1fr;}
+}
+
+/* ---------- Board ---------- */
+.board-wrap{
+background:linear-gradient(160deg, #4a3527, #2e2119);
+border-radius:16px;
+padding:18px;
+box-shadow:0 20px 50px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(201,162,75,0.15);
+}
+.status-row{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:14px;
+padding:0 4px;
+font-family:var(--serif);
+}
+.status-row .turn{
+font-size:17px;
+color:var(--gold-bright);
+}
+.status-row .turn .dot{
+display:inline-block;
+width:10px;height:10px;
+border-radius:50%;
+margin-right:8px;
+background:var(--ivory);
+box-shadow:0 0 0 1px rgba(0,0,0,0.4) inset;
+vertical-align:middle;
+}
+.status-row .turn.black .dot{background:#1b140f; box-shadow:0 0 0 1px var(--gold);}
+.status-row .controls button{
+background:transparent;
+border:1px solid rgba(201,162,75,0.4);
+color:var(--ivory);
+font-family:var(--sans);
+font-size:12.5px;
+padding:7px 12px;
+border-radius:7px;
+cursor:pointer;
+margin-left:8px;
+transition:background 0.15s, border-color 0.15s;
+}
+.status-row .controls button:hover{
+background:rgba(201,162,75,0.14);
+border-color:var(--gold);
+}
+
+#board{
+display:grid;
+grid-template-columns:repeat(8, 1fr);
+grid-template-rows:repeat(8, 1fr);
+width:min(560px, 78vw);
+height:min(560px, 78vw);
+border-radius:6px;
+overflow:hidden;
+box-shadow:0 0 0 6px var(--walnut-dark);
+}
+.sq{
+position:relative;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:clamp(28px, 6vw, 44px);
+cursor:pointer;
+user-select:none;
+transition:filter 0.1s;
+}
+.sq.light{background:var(--board-light);}
+.sq.dark{background:var(--board-dark);}
+.sq .piece{
+filter:drop-shadow(0 2px 1px rgba(0,0,0,0.35));
+transition:transform 0.08s;
+pointer-events:none;
+}
+.sq.selected{box-shadow:inset 0 0 0 3px var(--gold-bright);}
+.sq.from{background:rgba(201,162,75,0.55) !important;}
+.sq.to{background:rgba(201,162,75,0.55) !important;}
+.sq.legal::after{
+content:'';
+position:absolute;
+width:22%;
+height:22%;
+border-radius:50%;
+background:rgba(36,28,22,0.35);
+}
+.sq.legal-capture::after{
+content:'';
+position:absolute;
+inset:6%;
+border-radius:50%;
+border:4px solid rgba(168,67,58,0.75);
+background:transparent;
+}
+.sq.king-check{box-shadow:inset 0 0 0 3px var(--danger);}
+.coords{
+position:absolute;
+font-size:9px;
+font-family:var(--sans);
+font-weight:600;
+opacity:0.55;
+}
+.coords.file{bottom:2px; right:4px;}
+.coords.rank{top:2px; left:3px;}
+.sq.light .coords{color:var(--walnut);}
+.sq.dark .coords{color:var(--board-light);}
+
+.banner{
+margin-top:14px;
+text-align:center;
+font-family:var(--serif);
+font-size:16px;
+color:var(--gold-bright);
+min-height:22px;
+}
+
+/* ---------- Side panel ---------- */
+.panel{
+display:flex;
+flex-direction:column;
+gap:18px;
+}
+.card{
+background:rgba(255,255,255,0.03);
+border:1px solid rgba(201,162,75,0.18);
+border-radius:14px;
+padding:18px;
+}
+.card h2{
+font-family:var(--serif);
+font-size:15px;
+font-weight:600;
+margin:0 0 12px;
+color:var(--gold-bright);
+}
+
+/* Auth card */
+#authCard .signed-out, #authCard .signed-in{display:none;}
+#authCard.state-out .signed-out{display:flex;}
+#authCard.state-in .signed-in{display:flex;}
+.signed-out{flex-direction:column; gap:10px;}
+.signed-in{align-items:center; gap:12px;}
+
+.auth-btn{
+display:flex;
+align-items:center;
+justify-content:center;
+gap:10px;
+width:100%;
+padding:10px 14px;
+border-radius:8px;
+font-family:var(--sans);
+font-size:14px;
+font-weight:600;
+cursor:pointer;
+border:1px solid rgba(255,255,255,0.15);
+transition:transform 0.08s, filter 0.1s;
+}
+.auth-btn:hover{filter:brightness(1.08);}
+.auth-btn:active{transform:scale(0.98);}
+.auth-btn svg{width:18px;height:18px;flex-shrink:0;}
+.btn-google{background:#f4ede0; color:#1b140f;}
+.btn-apple{background:#000; color:#fff; border-color:#333;}
+
+.avatar{
+width:44px;height:44px;
+border-radius:50%;
+background:var(--gold);
+display:flex;align-items:center;justify-content:center;
+font-family:var(--serif);
+font-weight:700;
+color:var(--ink);
+overflow:hidden;
+flex-shrink:0;
+}
+.avatar img{width:100%;height:100%;object-fit:cover;}
+.who{display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;}
+.who .name{font-weight:600; font-size:14px; color:var(--ivory); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.who .email{font-size:12px; color:#a8998a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.signout{
+background:transparent;
+border:1px solid rgba(201,162,75,0.35);
+color:var(--ivory);
+font-size:12px;
+padding:6px 10px;
+border-radius:7px;
+cursor:pointer;
+flex-shrink:0;
+}
+.signout:hover{border-color:var(--gold);}
+
+.note{font-size:11.5px; line-height:1.5; color:#8a7c6e; margin-top:10px;}
+.note code{background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:4px; color:var(--gold-bright);}
+
+/* Captured pieces */
+.captured-row{display:flex; flex-wrap:wrap; gap:2px; min-height:26px; font-size:19px;}
+
+/* Move log */
+#moveLog{
+max-height:220px;
+overflow-y:auto;
+font-size:13px;
+line-height:1.9;
+font-family:'SFMono-Regular', Consolas, monospace;
+}
+#moveLog::-webkit-scrollbar{width:6px;}
+#moveLog::-webkit-scrollbar-thumb{background:rgba(201,162,75,0.3); border-radius:4px;}
+.move-pair{display:flex; gap:8px;}
+.move-pair .num{color:#8a7c6e; width:22px; flex-shrink:0;}
+.move-pair .mv{color:var(--ivory);}
+</style>
+</head>
+<body>
+
+<header class="top">
+<div>
+<h1>Endgame<span>.</span></h1>
+<div class="tagline">Two players, one board, no arguing about castling rules.</div>
+</div>
+</header>
+
+<div class="layout">
+
+<!-- BOARD -->
+<div class="board-wrap">
+<div class="status-row">
+<div class="turn white" id="turnIndicator"><span class="dot"></span>White to move</div>
+<div class="controls">
+<button id="undoBtn">Undo</button>
+<button id="resetBtn">New game</button>
+</div>
+</div>
+<div id="board"></div>
+<div class="banner" id="banner"></div>
+</div>
+
+<!-- SIDE PANEL -->
+<div class="panel">
+
+<div class="card state-out" id="authCard">
+<h2>Sign in</h2>
+<div class="signed-out">
+<div id="googleBtnHost"></div>
+<button class="auth-btn btn-apple" id="appleBtn">
+<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.365 1.43c0 1.14-.463 2.11-1.19 2.85-.783.788-1.99 1.396-3.02 1.31-.13-1.09.44-2.24 1.15-2.96.79-.8 2.14-1.39 3.06-1.2zM20.5 17.2c-.5 1.16-1.09 2.28-1.94 3.32-.78.96-1.6 1.92-2.86 1.94-1.23.02-1.63-.73-3.04-.73-1.4 0-1.85.71-3.02.75-1.22.04-2.15-1.04-2.94-2-.5-.6-1.34-1.9-2.15-3.72-.87-1.94-1.28-3.9-1.28-5.68 0-1.86.66-3.4 1.65-4.5.83-.92 1.94-1.5 3.16-1.53 1.14-.03 1.86.75 3.04.75 1.16 0 1.83-.75 3.03-.75 1.15.02 2.19.52 2.98 1.46-2.6 1.42-2.18 5.14.37 6.2-.44 1.02-.62 1.36-1.03 2.05z"/></svg>
+Continue with Apple
+</button>
+<div class="note">
+Buttons are wired to Google Identity Services and Apple's Sign-In JS SDK. Drop in your own <code>client_id</code> values (see comments in the source) before this goes live on your domain.
+</div>
+</div>
+<div class="signed-in">
+<div class="avatar" id="avatar">?</div>
+<div class="who">
+<div class="name" id="userName">—</div>
+<div class="email" id="userEmail">—</div>
+</div>
+<button class="signout" id="signOutBtn">Sign out</button>
+</div>
+</div>
+
+<div class="card">
+<h2>Captured</h2>
+<div class="captured-row" id="capturedByWhite" title="Captured by White"></div>
+<div class="captured-row" id="capturedByBlack" title="Captured by Black"></div>
+</div>
+
+<div class="card">
+<h2>Moves</h2>
+<div id="moveLog"></div>
+</div>
+
+</div>
+</div>
+
+<script>
+/* =========================================================================
+CHESS ENGINE — full legal move generation, check/checkmate/stalemate,
+castling, en passant, promotion. No external libraries.
+========================================================================= */
+
+const PIECES = {
+wK:'♔', wQ:'♕', wR:'♖', wB:'♗', wN:'♘', wP:'♙',
+bK:'♚', bQ:'♛', bR:'♜', bB:'♝', bN:'♞', bP:'♟'
+};
+
+function initialBoard(){
+const b = Array.from({length:8}, () => Array(8).fill(null));
+const back = ['R','N','B','Q','K','B','N','R'];
+for(let f=0; f<8; f++){
+b[0][f] = 'b'+back[f];
+b[1][f] = 'bP';
+b[6][f] = 'wP';
+b[7][f] = 'w'+back[f];
+}
+return b;
+}
+
+let state = {
+board: initialBoard(),
+turn: 'w',
+selected: null,
+legalMoves: [],
+history: [], // for undo: snapshots
+moveLog: [], // algebraic-ish log
+castling: { wK:true, wQ:true, bK:true, bQ:true },
+enPassant: null, // {r,c} square that can be captured en passant
+kingPos: { w:{r:7,c:4}, b:{r:0,c:4} },
+gameOver: false
+};
+
+function cloneState(){
+return JSON.parse(JSON.stringify({
+board: state.board, turn: state.turn, castling: state.castling,
+enPassant: state.enPassant, kingPos: state.kingPos
+}));
+}
+
+function inBounds(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
+
+function pieceColor(p){ return p ? p[0] : null; }
+function pieceType(p){ return p ? p[1] : null; }
+
+// Raw moves ignoring self-check (used internally, then filtered)
+function rawMoves(board, r, c, castling, enPassant){
+const p = board[r][c];
+if(!p) return [];
+const color = pieceColor(p), type = pieceType(p);
+const moves = [];
+const dir = color === 'w' ? -1 : 1;
+
+const addIfEmptyOrEnemy = (nr,nc) => {
+if(!inBounds(nr,nc)) return false;
+const target = board[nr][nc];
+if(!target){ moves.push({r:nr,c:nc,capture:false}); return true; }
+if(pieceColor(target) !== color){ moves.push({r:nr,c:nc,capture:true}); }
+return false;
+};
+
+const slide = (dirs) => {
+for(const [dr,dc] of dirs){
+let nr=r+dr, nc=c+dc;
+while(inBounds(nr,nc)){
+const target = board[nr][nc];
+if(!target){ moves.push({r:nr,c:nc,capture:false}); }
+else{
+if(pieceColor(target) !== color) moves.push({r:nr,c:nc,capture:true});
+break;
+}
+nr+=dr; nc+=dc;
+}
+}
+};
+
+if(type === 'P'){
+// forward
+if(inBounds(r+dir,c) && !board[r+dir][c]){
+moves.push({r:r+dir,c:c,capture:false});
+const startRow = color==='w' ? 6 : 1;
+if(r===startRow && !board[r+2*dir][c]){
+moves.push({r:r+2*dir,c:c,capture:false,doubleStep:true});
+}
+}
+// captures
+for(const dc of [-1,1]){
+const nr=r+dir, nc=c+dc;
+if(!inBounds(nr,nc)) continue;
+const target = board[nr][nc];
+if(target && pieceColor(target)!==color){
+moves.push({r:nr,c:nc,capture:true});
+} else if(enPassant && enPassant.r===nr && enPassant.c===nc){
+moves.push({r:nr,c:nc,capture:true,enPassantCapture:true});
+}
+}
+} else if(type === 'N'){
+const deltas = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+for(const [dr,dc] of deltas) addIfEmptyOrEnemy(r+dr, c+dc);
+} else if(type === 'B'){
+slide([[-1,-1],[-1,1],[1,-1],[1,1]]);
+} else if(type === 'R'){
+slide([[-1,0],[1,0],[0,-1],[0,1]]);
+} else if(type === 'Q'){
+slide([[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]);
+} else if(type === 'K'){
+for(let dr=-1; dr<=1; dr++)
+for(let dc=-1; dc<=1; dc++)
+if(dr||dc) addIfEmptyOrEnemy(r+dr,c+dc);
+// castling
+const row = color==='w' ? 7 : 0;
+if(r===row && c===4){
+const kSide = color==='w' ? castling.wK : castling.bK;
+const qSide = color==='w' ? castling.wQ : castling.bQ;
+if(kSide && !board[row][5] && !board[row][6] && board[row][7]===color+'R'){
+moves.push({r:row,c:6,capture:false,castle:'K'});
+}
+if(qSide && !board[row][1] && !board[row][2] && !board[row][3] && board[row][0]===color+'R'){
+moves.push({r:row,c:2,capture:false,castle:'Q'});
+}
+}
+}
+return moves;
+}
+
+function findKing(board, color){
+for(let r=0;r<8;r++) for(let c=0;c<8;c++)
+if(board[r][c] === color+'K') return {r,c};
+return null;
+}
+
+function isSquareAttacked(board, r, c, byColor, castling, enPassant){
+for(let rr=0; rr<8; rr++){
+for(let cc=0; cc<8; cc++){
+const p = board[rr][cc];
+if(p && pieceColor(p)===byColor){
+const mv = rawMoves(board, rr, cc, castling, enPassant);
+if(mv.some(m => m.r===r && m.c===c && pieceType(p)!=='K' || (pieceType(p)==='K' && Math.abs(m.r-r)<=0 && m.r===r && m.c===c))){
+// simpler: just check coordinates match (castling moves for king don't threaten via castle flag issues, fine for attack check since castle moves land on r,c not relevant to "attacks")
+}
+if(mv.some(m => m.r===r && m.c===c)) return true;
+}
+}
+}
+return false;
+}
+
+function makeMoveOnBoard(board, from, to, castling, enPassant, promoChoice){
+const p = board[from.r][from.c];
+const color = pieceColor(p), type = pieceType(p);
+let newEnPassant = null;
+let captured = board[to.r][to.c];
+
+// en passant capture
+const moveOptions = rawMoves(board, from.r, from.c, castling, enPassant)
+.find(m => m.r===to.r && m.c===to.c);
+
+if(moveOptions && moveOptions.enPassantCapture){
+const capR = color==='w' ? to.r+1 : to.r-1;
+captured = board[capR][to.c];
+board[capR][to.c] = null;
+}
+
+board[to.r][to.c] = p;
+board[from.r][from.c] = null;
+
+// pawn double step -> set en passant target
+if(type==='P' && Math.abs(to.r-from.r)===2){
+newEnPassant = { r:(to.r+from.r)/2, c:from.c };
+}
+
+// promotion
+if(type==='P' && (to.r===0 || to.r===7)){
+board[to.r][to.c] = color + (promoChoice || 'Q');
+}
+
+// castling rook move
+let castledRookMove = null;
+if(moveOptions && moveOptions.castle){
+const row = to.r;
+if(moveOptions.castle==='K'){
+board[row][5] = board[row][7];
+board[row][7] = null;
+castledRookMove = {from:{r:row,c:7}, to:{r:row,c:5}};
+} else {
+board[row][3] = board[row][0];
+board[row][0] = null;
+castledRookMove = {from:{r:row,c:0}, to:{r:row,c:3}};
+}
+}
+
+// update castling rights
+const newCastling = {...castling};
+if(type==='K'){
+if(color==='w'){ newCastling.wK=false; newCastling.wQ=false; }
+else { newCastling.bK=false; newCastling.bQ=false; }
+}
+if(type==='R'){
+if(color==='w' && from.r===7 && from.c===0) newCastling.wQ=false;
+if(color==='w' && from.r===7 && from.c===7) newCastling.wK=false;
+if(color==='b' && from.r===0 && from.c===0) newCastling.bQ=false;
+if(color==='b' && from.r===0 && from.c===7) newCastling.bK=false;
+}
+// rook captured on original square
+if(captured && pieceType(captured)==='R'){
+if(to.r===7 && to.c===0) newCastling.wQ=false;
+if(to.r===7 && to.c===7) newCastling.wK=false;
+if(to.r===0 && to.c===0) newCastling.bQ=false;
+if(to.r===0 && to.c===7) newCastling.bK=false;
+}
+
+return { captured, newEnPassant, newCastling, castledRookMove, moveMeta:moveOptions };
+}
+
+function getLegalMoves(r, c){
+const p = state.board[r][c];
+if(!p) return [];
+const color = pieceColor(p);
+const candidates = rawMoves(state.board, r, c, state.castling, state.enPassant);
+const legal = [];
+
+for(const mv of candidates){
+// castling: also ensure king not currently in check and doesn't pass through attacked square
+if(mv.castle){
+const row = r;
+if(isSquareAttacked(state.board, row, 4, color==='w'?'b':'w', state.castling, state.enPassant)) continue;
+const passC = mv.castle==='K' ? 5 : 3;
+const boardCopy = state.board.map(row=>row.slice());
+if(isSquareAttacked(boardCopy, row, passC, color==='w'?'b':'w', state.castling, state.enPassant)) continue;
+}
+
+const boardCopy = state.board.map(row=>row.slice());
+const castlingCopy = {...state.castling};
+makeMoveOnBoard(boardCopy, {r,c}, {r:mv.r,c:mv.c}, castlingCopy, state.enPassant, 'Q');
+
+const kingPos = pieceType(p)==='K' ? {r:mv.r,c:mv.c} : findKing(boardCopy, color);
+const enemyColor = color==='w' ? 'b' : 'w';
+if(!isSquareAttacked(boardCopy, kingPos.r, kingPos.c, enemyColor, castlingCopy, null)){
+legal.push(mv);
+}
+}
+return legal;
+}
+
+function allLegalMovesFor(color){
+const all = [];
+for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+const p = state.board[r][c];
+if(p && pieceColor(p)===color){
+const mvs = getLegalMoves(r,c);
+mvs.forEach(m => all.push({from:{r,c}, to:{r:m.r,c:m.c}, meta:m}));
+}
+}
+return all;
+}
+
+function isInCheck(color){
+const k = findKing(state.board, color);
+if(!k) return false;
+return isSquareAttacked(state.board, k.r, k.c, color==='w'?'b':'w', state.castling, state.enPassant);
+}
+
+const files = ['a','b','c','d','e','f','g','h'];
+function sqName(r,c){ return files[c] + (8-r); }
+
+function pushHistory(){
+state.history.push({
+board: state.board.map(row=>row.slice()),
+turn: state.turn,
+castling: {...state.castling},
+enPassant: state.enPassant ? {...state.enPassant} : null
+});
+}
+
+function applyMove(from, to){
+pushHistory();
+const p = state.board[from.r][from.c];
+const color = pieceColor(p), type = pieceType(p);
+const wasCapture = !!state.board[to.r][to.c];
+
+let promoChoice = 'Q';
+const isPromotion = type==='P' && (to.r===0 || to.r===7);
+if(isPromotion){
+promoChoice = promptPromotion(color);
+}
+
+const result = makeMoveOnBoard(state.board, from, to, state.castling, state.enPassant, promoChoice);
+state.castling = result.newCastling;
+state.enPassant = result.newEnPassant;
+
+const enemyColor = color==='w' ? 'b' : 'w';
+state.turn = enemyColor;
+
+// log move
+let notation = '';
+if(result.moveMeta && result.moveMeta.castle){
+notation = result.moveMeta.castle==='K' ? 'O-O' : 'O-O-O';
+} else {
+const capTxt = (wasCapture || (result.moveMeta && result.moveMeta.enPassantCapture)) ? 'x' : '';
+const pieceLetter = type==='P' ? '' : type;
+const fromHint = type==='P' && capTxt ? files[from.c] : '';
+notation = pieceLetter + fromHint + capTxt + sqName(to.r, to.c) + (isPromotion? '='+promoChoice : '');
+}
+
+const inCheck = isInCheck(enemyColor);
+const enemyMoves = allLegalMovesFor(enemyColor);
+let suffix = '';
+if(inCheck && enemyMoves.length===0){ suffix='#'; state.gameOver = true; }
+else if(inCheck){ suffix='+'; }
+else if(enemyMoves.length===0){ suffix=''; state.gameOver = true; state.stalemate = true; }
+
+state.moveLog.push({ text: notation + suffix, captured: result.captured, color });
+
+return { checkmate: inCheck && enemyMoves.length===0, stalemate: !inCheck && enemyMoves.length===0 };
+}
+
+function promptPromotion(color){
+const choice = window.prompt('Promote pawn to (Q, R, B, N):', 'Q');
+const valid = ['Q','R','B','N'];
+const upper = (choice||'Q').toUpperCase().trim();
+return valid.includes(upper) ? upper : 'Q';
+}
+
+/* =========================================================================
+RENDERING
+========================================================================= */
+
+const boardEl = document.getElementById('board');
+const turnIndicator = document.getElementById('turnIndicator');
+const banner = document.getElementById('banner');
+const moveLogEl = document.getElementById('moveLog');
+const capturedByWhiteEl = document.getElementById('capturedByWhite');
+const capturedByBlackEl = document.getElementById('capturedByBlack');
+
+function render(){
+boardEl.innerHTML = '';
+const kingInCheck = ['w','b'].filter(c => isInCheck(c)).map(c => findKing(state.board,c));
+
+for(let r=0;r<8;r++){
+for(let c=0;c<8;c++){
+const sq = document.createElement('div');
+sq.className = 'sq ' + (((r+c)%2===0) ? 'light':'dark');
+sq.dataset.r = r; sq.dataset.c = c;
+
+if(c===0){
+const rank = document.createElement('span');
+rank.className='coords rank';
+rank.textContent = 8-r;
+sq.appendChild(rank);
+}
+if(r===7){
+const file = document.createElement('span');
+file.className='coords file';
+file.textContent = files[c];
+sq.appendChild(file);
+}
+
+const p = state.board[r][c];
+if(p){
+const span = document.createElement('span');
+span.className='piece';
+span.textContent = PIECES[p];
+sq.appendChild(span);
+}
+
+if(state.selected && state.selected.r===r && state.selected.c===c){
+sq.classList.add('selected');
+}
+if(state.lastMove){
+if(state.lastMove.from.r===r && state.lastMove.from.c===c) sq.classList.add('from');
+if(state.lastMove.to.r===r && state.lastMove.to.c===c) sq.classList.add('to');
+}
+if(state.legalMoves.some(m => m.r===r && m.c===c)){
+const mv = state.legalMoves.find(m=>m.r===r && m.c===c);
+sq.classList.add(mv.capture ? 'legal-capture' : 'legal');
+}
+if(kingInCheck.some(k => k && k.r===r && k.c===c)){
+sq.classList.add('king-check');
+}
+
+sq.addEventListener('click', () => onSquareClick(r,c));
+boardEl.appendChild(sq);
+}
+}
+
+turnIndicator.classList.toggle('black', state.turn==='b');
+turnIndicator.innerHTML = `<span class="dot"></span>${state.turn==='w'?'White':'Black'} to move`;
+
+if(state.gameOver){
+if(state.stalemate){
+banner.textContent = 'Draw by stalemate.';
+} else {
+const winner = state.turn==='w' ? 'Black' : 'White';
+banner.textContent = `Checkmate — ${winner} wins.`;
+}
+} else if(isInCheck(state.turn)){
+banner.textContent = `${state.turn==='w'?'White':'Black'} is in check.`;
+} else {
+banner.textContent = '';
+}
+
+// move log
+moveLogEl.innerHTML = '';
+for(let i=0;i<state.moveLog.length;i+=2){
+const row = document.createElement('div');
+row.className = 'move-pair';
+const num = document.createElement('span');
+num.className='num';
+num.textContent = (i/2+1)+'.';
+row.appendChild(num);
+const w = document.createElement('span');
+w.className='mv';
+w.textContent = state.moveLog[i] ? state.moveLog[i].text : '';
+row.appendChild(w);
+if(state.moveLog[i+1]){
+const b = document.createElement('span');
+b.className='mv';
+b.textContent = state.moveLog[i+1].text;
+row.appendChild(b);
+}
+moveLogEl.appendChild(row);
+}
+moveLogEl.scrollTop = moveLogEl.scrollHeight;
+
+// captured pieces
+capturedByWhiteEl.innerHTML = '';
+capturedByBlackEl.innerHTML = '';
+state.moveLog.forEach(m => {
+if(m.captured){
+const span = document.createElement('span');
+span.textContent = PIECES[m.captured];
+if(m.color==='w') capturedByWhiteEl.appendChild(span);
+else capturedByBlackEl.appendChild(span);
+}
+});
+}
+
+function onSquareClick(r,c){
+if(state.gameOver) return;
+const p = state.board[r][c];
+
+if(state.selected){
+const mv = state.legalMoves.find(m => m.r===r && m.c===c);
+if(mv){
+const from = {...state.selected};
+const to = {r,c};
+applyMove(from, to);
+state.selected = null;
+state.legalMoves = [];
+state.lastMove = {from, to};
+render();
+return;
+}
+// clicking another own piece re-selects
+if(p && pieceColor(p)===state.turn){
+state.selected = {r,c};
+state.legalMoves = getLegalMoves(r,c);
+render();
+return;
+}
+state.selected = null;
+state.legalMoves = [];
+render();
+return;
+}
+
+if(p && pieceColor(p)===state.turn){
+state.selected = {r,c};
+state.legalMoves = getLegalMoves(r,c);
+render();
+}
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+state = {
+board: initialBoard(), turn:'w', selected:null, legalMoves:[],
+history:[], moveLog:[], castling:{wK:true,wQ:true,bK:true,bQ:true},
+enPassant:null, kingPos:{w:{r:7,c:4},b:{r:0,c:4}}, gameOver:false
+};
+render();
+});
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+if(state.history.length===0) return;
+const prev = state.history.pop();
+state.board = prev.board;
+state.turn = prev.turn;
+state.castling = prev.castling;
+state.enPassant = prev.enPassant;
+state.moveLog.pop();
+state.selected = null;
+state.legalMoves = [];
+state.lastMove = null;
+state.gameOver = false;
+state.stalemate = false;
+render();
+});
+
+render();
+
+/* =========================================================================
+AUTH — Google Identity Services + Sign in with Apple
+Replace the placeholder client IDs below with your own before deploying.
+========================================================================= */
+
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+const APPLE_CLIENT_ID = 'com.yourdomain.yourapp';
+const APPLE_REDIRECT_URI = window.location.origin + window.location.pathname;
+
+const authCard = document.getElementById('authCard');
+const userNameEl = document.getElementById('userName');
+const userEmailEl = document.getElementById('userEmail');
+const avatarEl = document.getElementById('avatar');
+
+function setSignedIn(user){
+authCard.classList.remove('state-out');
+authCard.classList.add('state-in');
+userNameEl.textContent = user.name || 'Player';
+userEmailEl.textContent = user.email || '';
+if(user.picture){
+avatarEl.innerHTML = `<img src="${user.picture}" alt="">`;
+} else {
+avatarEl.textContent = (user.name || '?').charAt(0).toUpperCase();
+}
+}
+
+function setSignedOut(){
+authCard.classList.remove('state-in');
+authCard.classList.add('state-out');
+}
+
+// ---- Google ----
+function decodeJwt(token){
+try{
+const payload = token.split('.')[1];
+return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+}catch(e){ return {}; }
+}
+
+function handleGoogleCredential(response){
+const data = decodeJwt(response.credential);
+setSignedIn({ name:data.name, email:data.email, picture:data.picture });
+}
+
+window.addEventListener('load', () => {
+if(window.google && google.accounts && google.accounts.id){
+google.accounts.id.initialize({
+client_id: GOOGLE_CLIENT_ID,
+callback: handleGoogleCredential
+});
+google.accounts.id.renderButton(
+document.getElementById('googleBtnHost'),
+{ theme:'filled_black', size:'large', shape:'pill', width:260, text:'continue_with' }
+);
+}
+});
+
+// ---- Apple ----
+document.getElementById('appleBtn').addEventListener('click', () => {
+if(window.AppleID){
+try{
+AppleID.auth.init({
+clientId: APPLE_CLIENT_ID,
+scope: 'name email',
+redirectURI: APPLE_REDIRECT_URI,
+usePopup: true
+});
+AppleID.auth.signIn().then((res) => {
+const claims = res.authorization ? decodeJwt(res.authorization.id_token) : {};
+const name = res.user && res.user.name
+? `${res.user.name.firstName} ${res.user.name.lastName}`
+: 'Apple Player';
+setSignedIn({ name, email: claims.email || (res.user && res.user.email) || '' });
+}).catch(err => console.warn('Apple sign-in cancelled or failed', err));
+}catch(e){
+console.warn('Apple auth not configured yet.', e);
+alert('Add your Apple Services ID in APPLE_CLIENT_ID before this button will work.');
+}
+} else {
+alert('Apple Sign-In script not loaded yet — try again in a moment.');
+}
+});
+
+document.getElementById('signOutBtn').addEventListener('click', () => {
+if(window.google && google.accounts && google.accounts.id){
+google.accounts.id.disableAutoSelect();
+}
+setSignedOut();
+});
+</script>
+</body>
+</html>
